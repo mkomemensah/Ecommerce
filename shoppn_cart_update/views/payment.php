@@ -98,17 +98,32 @@ require_once __DIR__ . '/layout/header.php';
 <?php if ($configured): ?>
 <script src="https://js.paystack.co/v1/inline.js"></script>
 <script>
+var paying = false;
+
 function payWithPaystack() {
+    // Runs when Paystack reports a successful payment. The server still
+    // re-checks the payment with Paystack before it creates any order.
+    function paymentDone(response) {
+        paying = true;
+        var btn = document.getElementById('payBtn');
+        btn.disabled = true;
+        btn.textContent = 'Payment received. Confirming your order...';
+        window.location = <?php echo json_encode(url('actions/process_payment_action.php')); ?> + '?ref=' + encodeURIComponent(response.reference);
+    }
+
+    function paymentClosed() {
+        if (!paying) { alert('Payment cancelled.'); }
+    }
+
     var handler = PaystackPop.setup({
         key: <?php echo json_encode(PAYSTACK_PUBLIC_KEY); ?>,
         email: <?php echo json_encode($_SESSION['customer_email']); ?>,
         amount: <?php echo $pesewas; ?>,
         currency: 'GHS',
-        onSuccess: function (response) {
-            // The server re-checks this with Paystack before creating any order.
-            window.location = <?php echo json_encode(url('actions/process_payment_action.php')); ?> + '?ref=' + encodeURIComponent(response.reference);
-        },
-        onCancel: function () { alert('Payment cancelled.'); }
+        callback: paymentDone,      // Paystack inline v1 name
+        onSuccess: paymentDone,     // newer name, kept so either version works
+        onClose: paymentClosed,     // Paystack inline v1 name
+        onCancel: paymentClosed
     });
     handler.openIframe();
 }
